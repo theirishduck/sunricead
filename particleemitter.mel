@@ -1,3 +1,5 @@
+// Copyright (C) Campbell Craig : theirishduck@gmail.com
+
 var SUBDIVED = createCheckInput("Subdived", false);
 var MAX_RADIUS_OFFSET = createFloat("Max Radius Offset", 0.10, -1.0, 1.0);
 var MAX_ORIGIN_OFFSET = createFloat("Max Origin Offset", 0.47, -1.0, 1.0);
