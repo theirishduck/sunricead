@@ -1,0 +1,202 @@
+var SUBDIVED = createCheckInput("Subdived", false);
+var MAX_RADIUS_OFFSET = createFloat("Max Radius Offset", 0.10, -1.0, 1.0);
+var MAX_ORIGIN_OFFSET = createFloat("Max Origin Offset", 0.47, -1.0, 1.0);
+var RICE_HEIGHT = createFloat("Height", 0.85, 0.1, 1.0);
+var RICE_RADIUS = createFloat("RICE Radius", 0.02, 0.01, 0.2);
+var RICE_SEGMENTS = createInt("RICE Segments", 15, 2, 30);
+var RICE_COLOR = createColor("RICE Color", "#939297");
+var RICE_MIN_ANGLE = createFloat("RICE Min Angle", 10.72, 8, 30);
+var RICE_MAX_ANGLE = createFloat("RICE Max Angle", 58.81, 50, 75);
+var MAX_RICES_PER_SHAPE = createFloat("Max RICEes", 7, 1, 7);
+var RICE_LENGTH_MIN_RATIO = createFloat("RICE Length Min Ratio", 0.24, 0.2, 0.9);
+var RICE_LENGTH_MAX_RATIO = createFloat("RICE Length Max Ratio", 0.78, 0.2, 0.9);
+var RICEGRAIN_MIN_LENGTH = createFloat("RICEGRAIN Min Length", 0.04, 0.005, 0.1);
+var RICEGRAIN_MAX_LENGTH = createFloat("RICEGRAIN Max Length", 0.08, 0.005, 0.2);
+var RICEGRAIN_SEGMENTS = createInt("RICEGRAIN Segments", 5, 3, 6);
+var RICEGRAIN_COLOR = createColor("RICEGRAIN Color", "#58834b");
+
+var X = new THREE.Vector3( 1, 0, 0 );
+var Y = new THREE.Vector3( 0, 1, 0 );
+function createNode(part, origin, radius)
+{
+	var node = createNode(part);
+	setAttribute(node, "x", origin.getComponent(0));
+	setAttribute(node, "y", origin.getComponent(1));
+	setAttribute(node, "z", origin.getComponent(2));
+	setAttribute(node, "radius", radius);
+	return node;
+}
+THREE.Vector3.prototype.random = function (maxOffset)
+{
+	for (var i = 0; i < 3; ++i)
+	this.setComponent(i, this.getComponent(i) + maxOffset * Math.random());
+	return this;
+};
+function randInRange(min, max)
+{
+	if (min > max) {
+		var tmp = min;
+		min = max;
+		max = tmp;
+	}
+	return (min + (max - min) * Math.random());
+}
+function createRICEGRAINCutFace()
+{
+	var component = createComponent();
+	var part = createPart(component);
+	setAttribute(part, "target", "@ShapeNode");
+	var predefinesCutFace = [
+		{radius:"0.005", x:"0.314637", y:"0.336525", z:"0.713406"},
+		{radius:"0.005", x:"0.343365", y:"0.340629", z:"0.713406"},
+		{radius:"0.005", x:"0.377565", y:"0.340629", z:"0.713406"},
+		{radius:"0.0159439", x:"0.402189", y:"0.341997", z:"0.713406"},
+		{radius:"0.005", x:"0.440492", y:"0.329685", z:"0.713406"},
+		{radius:"0.005", x:"0.473324", y:"0.317373", z:"0.713406"},
+	];
+	var previousNode = undefined;
+	for (var i = 0; i < predefinesCutFace.length; ++i) {
+		var node = createNode(part,
+			new THREE.Vector3(parseFloat(predefinesCutFace[i]["x"]),
+				parseFloat(predefinesCutFace[i]["y"]),
+				parseFloat(predefinesCutFace[i]["z"])),
+				parseFloat(predefinesCutFace[i]["radius"]));
+		if (undefined != previousNode)
+			connect(previousNode, node);
+		previousNode = node;
+	}
+return part;
+}
+function getRandChildDirection(parentDirection)
+{
+	var rotationAxis = parentDirection.clone().cross(X);
+	var degree = randInRange(RICE_MIN_ANGLE, RICE_MAX_ANGLE);
+	var RICERotateQuaternion = new THREE.Quaternion();
+	RICERotateQuaternion.setFromAxisAngle(rotationAxis, degree * (Math.PI / 180));
+	var rotatedDirection = parentDirection.clone().
+	applyQuaternion(RICERotateQuaternion);
+	
+	var distributeQuaternion = new THREE.Quaternion();
+	distributeQuaternion.setFromAxisAngle(Y, 360 * Math.random() * (Math.PI / 180));
+	rotatedDirection = rotatedDirection.applyQuaternion(distributeQuaternion);
+	
+	return rotatedDirection;
+}
+var SHAPE_ID = attribute(createRICEGRAINCutFace(), "id");
+
+function createRICEGRAIN(RICEGRAINRootPosition, parentDirection)
+{
+	var direction = getRandChildDirection(parentDirection);
+	var component = createComponent();
+	var part = createPart(component);
+	setAttribute(part, "color", RICEGRAIN_COLOR);
+	setAttribute(part, "cutFace", CUTFACE_PART_ID);
+	var length = randInRange(RICEGRAIN_MIN_LENGTH, RICEGRAIN_MAX_LENGTH);
+	var segments = RICEGRAIN_SEGMENTS;
+	var maxRadius = length / 3;
+	var toPosition = RICEGRAINRootPosition.clone().add(direction.clone().
+	multiplyScalar(length));
+	var previousNode = undefined;
+	
+	for (var i = 0; i < segments; ++i) {
+		var alpha = (i + 0.0) / segments;
+		var origin = RICEGRAINRootPosition.clone().lerp(toPosition, alpha);
+		var radiusFactor = 1.0 - 2 * Math.abs(alpha - 0.3);
+		var radius = maxRadius * radiusFactor;
+		var node = createNode(part, origin, radius);
+	
+	if (undefined != previousNode)
+		connect(previousNode, node);
+	previousNode = node;
+}
+}
+function createRICE(RICERootPosition, radius, length, segments, parentDirection, maxRadius)
+{
+	var rotatedDirection = getRandChildDirection(parentDirection);
+	var RICEEndPosition = RICERootPosition.clone().add(rotatedDirection.
+	multiplyScalar(length));
+	createRICE(RICERootPosition, radius, RICEEndPosition, segments, maxRadius);
+}
+function shouldGrowRICE(alpha, alreadyGrowedNum)
+{
+	var factor = alpha * Math.random();
+		if (factor > 0.5 && factor < 0.8) {
+			if (alreadyGrowedNum > 0)
+				return true;
+			if (Math.random() > 0.5)
+				return true;
+}
+	return false;
+}
+function shouldGrowRICEGRAIN(alreadyGrowedNum)
+{
+	var factor = Math.random();
+		if (factor > 0.5) {
+			if (alreadyGrowedNum > 0)
+				return true;
+			if (Math.random() > 0.5)
+				return true;
+		}
+	return false;
+}
+function createRICE(fromPosition, fromRadius, toPosition, segments, maxRadius)
+{
+var component = createComponent();
+var part = createPart(component);
+	if (SUBDIVED)
+		setAttribute(part, "subdived", "true");
+		setAttribute(part, "color", RICE_COLOR);
+	var previousNode = undefined;
+	var toRadius = fromRadius * 0.2;
+	var direction = toPosition.clone().sub(fromPosition).normalize();
+	var length = fromPosition.distanceTo(toPosition);
+
+	for (var i = 0; i < segments; ++i) {
+		var alpha = (i + 0.0) / segments;
+		var origin = fromPosition.clone().lerp(toPosition, alpha);
+		var radius = fromRadius * (1.0 - alpha) + toRadius * alpha;
+		
+		radius += radius * MAX_RADIUS_OFFSET * Math.random();
+		
+	if (undefined != maxRadius && radius > maxRadius)
+		radius = maxRadius;
+		var oldY = origin.y;
+			origin.random(length * 0.1 * MAX_ORIGIN_OFFSET);
+			origin.setY(oldY + radius * 0.5 * Math.random());
+		if (undefined != maxRadius && i == 0)
+			origin = fromPosition;
+			var node = createNode(part, origin, radius);
+		if (undefined != previousNode)
+			connect(previousNode, node);
+			var maxRICEes = MAX_RICES_PER_SHAPE * Math.random();
+			var alreadyGrowedRICENum = 0;
+			var alreadyGrowedRICEGRAINNum = 0;
+			
+		for (var j = 0; j < maxRICEes; ++j) {
+			if (shouldGrowRICE(alpha, alreadyGrowedRICENum)) {
+				var RICELength = length * randInRange(RICE_LENGTH_MIN_RATIO, RICE_LENGTH_MAX_RATIO);
+				var RICERadius = radius * 0.5;
+				var RICESegments = segments * (RICELength / length);
+
+			if (RICESegments >= 3 && RICERadius > RICE_RADIUS / 20) {
+				createRICE(origin, RICERadius, RICELength, RICESegments, direction, radius);
+			++alreadyGrowedRICENum;
+			}
+	}
+	if (undefined != maxRadius && shouldGrowRICEGRAIN(alreadyGrowedRICEGRAINNum)) {
+		createRICEGRAIN(origin, direction);
+		++alreadyGrowedRICEGRAINNum;
+		}
+	}
+	previousNode = node;
+	}
+}
+
+	var RICERootPosition = new THREE.Vector3(0.5, 1.0, 1.0);
+	var RICETopPosition = RICERootPosition.clone();
+	RICETopPosition.add((new THREE.Vector3(0, -1, 0)).multiplyScalar(RICE_HEIGHT));
+		setAttribute("originX", 0.506767);
+		setAttribute("originY", 0.615943);
+		setAttribute("originZ", 1.08543);
+
+createRICE(RICERootPosition, RICE_RADIUS, RICETopPosition, RICE_SEGMENTS);
